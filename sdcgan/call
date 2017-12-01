@@ -1,0 +1,96 @@
+JOB_NAME="ravaiol2_sdcgan_bnlast8"
+gcloud ml-engine jobs submit training ${JOB_NAME} \
+--package-path sdcgan \
+--module-name sdcgan.dcgan \
+--staging-bucket gs://ece_544_project_data \
+--job-dir gs://ece_544_project_data/${JOB_NAME} \
+--runtime-version 1.2 \
+--packages sdcgan/scikit-image.tar.gz \
+--region us-central1 \
+--config sdcgan/cloudml-cpu.yaml \
+-- \
+--num-epochs 100 \
+--train-dir gs://ece_544_project_data/sdcgan/data/celebA \
+--output-dir gs://ece_544_project_data/sdcgan/output
+
+JOB_NAME="ravaiol2_sdcgan_cifar"
+gcloud ml-engine jobs submit training ${JOB_NAME} \
+--package-path sdcgan \
+--module-name sdcgan.dcgan_cifar \
+--staging-bucket gs://ece_544_project_data \
+--job-dir gs://ece_544_project_data/${JOB_NAME} \
+--runtime-version 1.2 \
+--packages sdcgan/scikit-image.tar.gz \
+--region us-central1 \
+--config sdcgan/cloudml-cpu.yaml \
+-- \
+--num-epochs 40 \
+--train-dir gs://ece_544_project_data/sdcgan/data/cifar_10 \
+--output-dir gs://ece_544_project_data/sdcgan/output
+
+python dcgan_cifar.py --num-epochs 40 \
+--train-dir data/cifar_10 \
+--output-dir output
+
+
+
+JOB_NAME="ravaiol2_sdcgan_manju"
+gcloud ml-engine jobs submit training ${JOB_NAME} \
+--package-path sdcgan \
+--module-name sdcgan.dcgan \
+--staging-bucket gs://ece_544_project_data \
+--job-dir gs://ece_544_project_data/${JOB_NAME} \
+--runtime-version 1.2 \
+--packages sdcgan/scikit-image.tar.gz \
+--region us-central1 \
+--config sdcgan/cloudml-cpu.yaml \
+-- \
+--num-epochs 100 \
+--train-dir gs://ece_544_project_data/sdcgan/data/celebA \
+--output-dir gs://ece_544_project_data/sdcgan/output_manju \
+--restore
+
+
+JOB_NAME="ravaiol2_sdcgan_pickle_test"
+gcloud ml-engine jobs submit training ${JOB_NAME} \
+--package-path sdcgan \
+--module-name sdcgan.pickle_test \
+--staging-bucket gs://ece_544_project_data \
+--job-dir gs://ece_544_project_data/${JOB_NAME} \
+--runtime-version 1.2 \
+--packages sdcgan/scikit-image.tar.gz \
+--region us-central1 \
+--config sdcgan/cloudml-cpu.yaml \
+
+Use restore to end to continue executing failed job
+
+After uploading data run the following commands:
+
+gsutil acl ch -u ujrav576@gmail.com:WRITE gs://ece_544_project_data/
+gsutil defacl ch -u ujrav576@gmail.com:O gs://ece_544_project_data/
+gsutil -m acl ch -r -u ujrav576@gmail.com:R gs://ece_544_project_data/*
+
+
+
+
+%bnCHK is just to sample it with new command to save
+
+%cpu version runs new command with 20000 images.
+
+
+You tried the following: 
+
+%Good one: G:1e-3 (twice), D:2e-4 broke down at epoch 34
+
+%Better one: G:1e-3 (once), D:5e-4. Working on this right now.
+
+%Ones that didnt give good results:
+
+%discriminatior: 1e-4, generator: 1e-3 could have worked. You stopped at 6 epochs. 5th one broke down, but 6th recovered
+
+%you tried discriminator: 1e-5, generator: 1e-3. Seemed too slow, nothing much changed till 10 epochs.
+
+%generator 2e-4 did not work with discriminator: 1e-4
+
+
+
