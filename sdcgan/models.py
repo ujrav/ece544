@@ -66,7 +66,10 @@ def conv2d(name, bottom, shape, strides, top_shape=None, with_bn=True, is_train=
         
         # apply batch normalization, if necessary
         # Manju: The new batch normalization function is built-in:
-        bn = tf.contrib.layers.batch_norm(bottom, is_training=is_train) if with_bn else bottom
+        bn=tf.cond(is_train,
+                   lambda: tf.contrib.layers.batch_norm(bottom, decay=0.99,  epsilon=0.0001, is_training=is_train, updates_collections=None,reuse=None, scope=scope) if with_bn else bottom, 
+                   lambda: tf.contrib.layers.batch_norm(bottom, decay=0.99, epsilon=0.0001, is_training=is_train, updates_collections=None,reuse=True, scope=scope) if with_bn else bottom)
+
         # add convolution op
         weights = tf.get_variable("weights", shape=shape,
                                   initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -92,8 +95,10 @@ def linear(name, bottom, shape, with_bn=True, is_train=None):
 
     with tf.variable_scope(name) as scope:
 
-        # apply batch normalization, if necessary
-        bn = tf.contrib.layers.batch_norm(bottom, is_training=is_train) if with_bn else bottom
+        bn=tf.cond(is_train,
+                   lambda: tf.contrib.layers.batch_norm(bottom, decay=0.99, epsilon=0.0001, is_training=is_train, updates_collections=None,reuse=None, scope=scope) if with_bn else bottom, 
+                   lambda: tf.contrib.layers.batch_norm(bottom, decay=0.99, epsilon=0.0001, is_training=is_train, updates_collections=None,reuse=True, scope=scope) if with_bn else bottom)
+
         # inner product
         weights = tf.get_variable("weights", shape=shape,
                                   initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -133,7 +138,7 @@ def generator(data, is_train, side_length):
     (batch_size, z_len) = data.get_shape().as_list()
 
     # project block, 1024 outputs
-    proj = tf.nn.relu(linear("g_proj", data, [z_len, dim * dim * 1024], with_bn=False))
+    proj = tf.nn.relu(linear("g_proj", data, [z_len, dim * dim * 1024], with_bn=False,is_train=is_train))
     rshp = tf.reshape(proj, [batch_size, dim, dim, 1024])
 
     # conv1 block, 512 outputs
@@ -177,7 +182,7 @@ def discriminator(data, is_train,reuse=False):
     """
 
     # conv1 block, 128 outputs
-    conv1 = lrelu(conv2d("d_conv1", data, [5, 5, 3, 128], STRIDE_2, with_bn=False))
+    conv1 = lrelu(conv2d("d_conv1", data, [5, 5, 3, 128], STRIDE_2, with_bn=False, is_train=is_train))
 
     # conv2 block, 256 outputs
     conv2 = lrelu(conv2d("d_conv2", conv1, [5, 5, 128, 256], STRIDE_2, is_train=is_train))
@@ -192,7 +197,7 @@ def discriminator(data, is_train,reuse=False):
     avg_pool = tf.reduce_mean(conv4, [1, 2])
 
     # fully connected
-    classifier = linear("d_classifier", avg_pool, [1024, 1], with_bn=False) 
+    classifier = linear("d_classifier", avg_pool, [1024, 1], with_bn=False,is_train=is_train) 
 
     top = classifier
 

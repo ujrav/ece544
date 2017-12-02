@@ -40,7 +40,7 @@ from tensorflow.python.lib.io import file_io
 import scipy.misc
 
 # local imports
-from sdcgan1.models import generator, discriminator
+from sdcganbn.models import generator, discriminator
 
 
 # size of the input latent space
@@ -62,15 +62,15 @@ DISPLAY_LOSSES = 50
 
 
 # directory to snapshot models and images
-OUTPUT_PATH = "gs://juman/sdcgan/output1"  # Manju: change this to your bucket. Make sure you have the appropriate folders. This code cannot make directories.
+OUTPUT_PATH = "gs://juman/sdcgan/outputbn"  # Manju: change this to your bucket. Make sure you have the appropriate folders. This code cannot make directories.
 CHECKPOINT_NAME = "checkpoint/dcgan.tfmodel" # make sure you have the checkpoint directory inside output folder.
 
 
 # argparse
 parser = argparse.ArgumentParser(description="Train a DCGAN using Tensorflow.")
 parser.add_argument("-n", "--num-epochs", type=int, default=100, help="number of epochs")
-parser.add_argument("-b", "--batch-size", type=int, default=16, help="batch size to use")
-parser.add_argument("-l", "--learning-rate", type=float, default=6e-4, help="generator learning rate")
+parser.add_argument("-b", "--batch-size", type=int, default=32, help="batch size to use")
+parser.add_argument("-l", "--learning-rate", type=float, default=1e-3, help="generator learning rate")
 parser.add_argument("-i", "--image-size", type=int, default=64, help="(square) image size")
 parser.add_argument("-s", "--scale-size", type=int, default=64, help="resize length for center crop")
 parser.add_argument("-t", "--train-dir", type=str, help="directory to pull training images from")
@@ -99,7 +99,7 @@ def _sigmoid_loss(logits, targets):
     return tf.reduce_mean(loss_comp)
     
 
-def _read_and_preprocess(paths, scale_len, crop_len):
+def _read_and_preprocess(paths, scale_len, crop_len,batch_size):
     """
         Reads multiple images (and labels).
     """
@@ -140,14 +140,14 @@ def _read_and_preprocess(paths, scale_len, crop_len):
     #     imgs.append(img)
 
 
-    imgs = []
+    imgs = np.zeros((batch_size,64,64,3))
     img=np.random.uniform(-1,1,size=(64,64,3))
-
+    i=0
     for path in paths:
         
         try:
 
-            file=file_io.FileIO(path,mode='r')
+            file=file_io.FileIO(path,mode='rb')
             img = scipy.misc.imread(file,mode='RGB')
 
             # force 3-channel images
@@ -158,33 +158,26 @@ def _read_and_preprocess(paths, scale_len, crop_len):
                 print("Adding noise")
                 # when there is a file IO error
 
-            # compute the resize dimension
-            
+            # center crop
+            crop_len=108
 
-            resize_f = float(scale_len) / min(np.array(img).shape[:2])
-            new_dims = (int(np.round(img.shape[0] * resize_f)),
-                        int(np.round(img.shape[1] * resize_f)))
-
-            # prevent the input image from blowing up
-            # factor of 2 is more or less an arbitrary number
-            max_dim = 2 * scale_len
-            new_dims = (min(new_dims[0], max_dim),
-                        min(new_dims[1], max_dim))
-
-            # resize and center crop
-            img = resize(img, new_dims)
             top = int(np.ceil((img.shape[0] - crop_len) / 2.0))
             left = int(np.ceil((img.shape[1] - crop_len) / 2.0))
             img = img[top:(top+crop_len), left:(left+crop_len)]
 
-            # preprocessing (tanh)
-            img = img*2 - 1
+            # resize 
+            img = scipy.misc.imresize(img, [scale_len,scale_len], mode='RGB')
+            
 
-            imgs.append(img)
+            # preprocessing (tanh)
+            img = img/127.5 - 1
+
+            imgs[i]=np.array(img)
+            i=i+1
         
         except:
-            imgs.append(img)
-
+            imgs[i]=np.array(img)
+            i=i+1
 
 
     return np.array(imgs)
@@ -276,8 +269,8 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
 
     # create optimization objectives
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    opt_G = tf.train.AdamOptimizer(lr_rate, beta1=0.7).minimize(loss_G, var_list=g_vars)
-    opt_D = tf.train.AdamOptimizer(6e-4, beta1=0.7).minimize(loss_D, var_list=d_vars)
+    opt_G = tf.train.AdamOptimizer(lr_rate, beta1=0.5).minimize(loss_G, var_list=g_vars)
+    opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(loss_D, var_list=d_vars)
 
     # create a saver and restore variables, if necessary
     saver = tf.train.Saver()
@@ -305,16 +298,17 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
 
             offset = (i * batch_size) % len(paths)
             batch_paths = paths[offset:(offset + batch_size)]
-            imgs = _read_and_preprocess(batch_paths, scale_len, crop_len)
+            imgs = _read_and_preprocess(batch_paths, scale_len, crop_len,batch_size)
             vec = np.random.uniform(-1, 1,size=(batch_size, Z_SIZE)).astype(np.float32)
 
             # minimize discriminator loss
-            for disc_it in range(0, 10):
-                sess.run(opt_D, feed_dict={real: imgs, sample: vec, is_train: True})
+            sess.run(opt_D, feed_dict={real: imgs, sample: vec, is_train: True})
 
             # minimize generator loss once or twice
             
-            sess.run(opt_G, feed_dict={sample: vec, is_train: True})
+            if i%10==0:
+                sess.run(opt_G, feed_dict={sample: vec, is_train: True})
+            
             # sess.run(opt_G, feed_dict={sample: vec, is_train: True}) #Manju: Some papers suggest to run generator twice. I've seen mixed results with this. Not quite sure what to do
             
 
@@ -388,7 +382,7 @@ def main(args):
         paths = [path for path in tf.gfile.Glob(pathname)]
 
         train_dcgan(args.num_epochs, args.batch_size, args.learning_rate, 
-                    args.image_size, args.scale_size, args.restore, paths[0:7000])
+                    args.image_size, args.scale_size, args.restore, paths[0:5120])
 
         
     # otherwise, use the generator to just sample and create images

@@ -70,8 +70,8 @@ CHECKPOINT_NAME = "checkpoint/dcgan.tfmodel" # make sure you have the checkpoint
 # argparse
 parser = argparse.ArgumentParser(description="Train a DCGAN using Tensorflow.")
 parser.add_argument("-n", "--num-epochs", type=int, default=100, help="number of epochs")
-parser.add_argument("-b", "--batch-size", type=int, default=16, help="batch size to use")
-parser.add_argument("-l", "--learning-rate", type=float, default=6e-4, help="generator learning rate")
+parser.add_argument("-b", "--batch-size", type=int, default=32, help="batch size to use")
+parser.add_argument("-l", "--learning-rate", type=float, default=1e-3, help="generator learning rate")
 parser.add_argument("-i", "--image-size", type=int, default=32, help="(square) image size")
 parser.add_argument("-s", "--scale-size", type=int, default=32, help="resize length for center crop")
 parser.add_argument("-t", "--train-dir", type=str, help="directory to pull training images from")
@@ -315,8 +315,8 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, tra
 
     # create optimization objectives
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    opt_G = tf.train.AdamOptimizer(lr_rate, beta1=0.7).minimize(loss_G, var_list=g_vars)
-    opt_D = tf.train.AdamOptimizer(6e-4, beta1=0.7).minimize(loss_D, var_list=d_vars)
+    opt_G = tf.train.AdamOptimizer(lr_rate, beta1=0.5).minimize(loss_G, var_list=g_vars)
+    opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(loss_D, var_list=d_vars)
 
     # create a saver and restore variables, if necessary
     saver = tf.train.Saver()
