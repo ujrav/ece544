@@ -175,7 +175,7 @@ def discriminator(data, is_train,reuse=False):
         :param tensorflow.Tensor is_train:
             Determines whether or not the discriminator is used only for inference.
     """
-    batch_size=data.get_shape().as_list()[0]
+
     # conv1 block, 128 outputs
     conv1 = lrelu(conv2d("d_conv1", data, [5, 5, 3, 128], STRIDE_2, with_bn=False))
 
@@ -188,57 +188,13 @@ def discriminator(data, is_train,reuse=False):
     # conv4 block, 1024 outputs
     conv4 = lrelu(conv2d("d_conv4", conv3, [5, 5, 512, 1024], STRIDE_2, is_train=is_train))
 
-    conv5 = tf.reshape(conv4, [batch_size, -1])
-    conoutput=conv5.get_shape().as_list()[1]
-    
+    # average pooling: (Manju) We NEED this.
+    avg_pool = tf.reduce_mean(conv4, [1, 2])
+
     # fully connected
-    classifier = linear("d_classifier", conv5, [conoutput, 1], with_bn=False)
+    classifier = linear("d_classifier", avg_pool, [1024, 1], with_bn=False) 
 
     top = classifier
 
     return top
 
-def discriminator_features(data, is_train,reuse=False):
-    """
-        Builds the discriminator network.
-
-        :param tensorflow.Tensor data:
-            A 4-D tensor representing an input image.
-
-        :param tensorflow.Tensor is_train:
-            Determines whether or not the discriminator is used only for inference.
-    """
-    batch_size=data.get_shape().as_list()[0]
-    # conv1 block, 128 outputs
-    conv1 = lrelu(conv2d("d_conv1", data, [5, 5, 3, 128], STRIDE_2, with_bn=False))
-
-    # conv2 block, 256 outputs
-    conv2 = lrelu(conv2d("d_conv2", conv1, [5, 5, 128, 256], STRIDE_2, is_train=is_train))
-
-    # conv3 block, 512 outputs
-    conv3 = lrelu(conv2d("d_conv3", conv2, [5, 5, 256, 512], STRIDE_2, is_train=is_train))
-
-    # conv4 block, 1024 outputs
-    conv4 = lrelu(conv2d("d_conv4", conv3, [5, 5, 512, 1024], STRIDE_2, is_train=is_train))
-
-    conv5 = tf.reshape(conv4, [batch_size, -1])
-
-    top = conv5
-
-    return top
-
-def discriminator_classify(data, n_classes, layer_name="c_classifier_n"):
-
-    features = discriminator_features(data, is_train = False, reuse = True)
-
-    feature_size = features.get_shape().as_list()[1]
-
-    classifier = linear(layer_name, features, [feature_size, n_classes], with_bn = False)
-
-    return classifier
-
-def discriminator_classify_to_labels(classification_scores):
-
-    output_classes = tf.where(classification_scores >= 0, tf.ones_like(classification_scores), -1*tf.ones_like(classification_scores))
-
-    return output_classes

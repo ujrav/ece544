@@ -356,7 +356,8 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, tra
 
             # minimize generator loss once or twice
             
-            sess.run(opt_G, feed_dict={sample: vec, is_train: True})
+            if i%10 == 0:
+                sess.run(opt_G, feed_dict={sample: vec, is_train: True})
             # sess.run(opt_G, feed_dict={sample: vec, is_train: True}) #Manju: Some papers suggest to run generator twice. I've seen mixed results with this. Not quite sure what to do
             
 
