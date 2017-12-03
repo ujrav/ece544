@@ -255,7 +255,7 @@ def _read_preprocess_cifar10(cifar_path, cifar_filenames):
         else:
             cifar_labels = np.concatenate((cifar_labels, label_set))
 
-    cifar_data = cifar_data*2 - 1
+    cifar_data = cifar_data.astype(np.float32, copy=False)/255*2 - 1
 
     return cifar_data, cifar_labels
 

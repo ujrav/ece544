@@ -203,3 +203,60 @@ def discriminator(data, is_train,reuse=False):
 
     return top
 
+def discriminator_features(data, is_train,reuse=False):
+    """
+        Builds the discriminator network.
+
+        :param tensorflow.Tensor data:
+            A 4-D tensor representing an input image.
+
+        :param tensorflow.Tensor is_train:
+            Determines whether or not the discriminator is used only for inference.
+    """
+
+    # conv1 block, 128 outputs
+    conv1 = lrelu(conv2d("d_conv1", data, [5, 5, 3, 128], STRIDE_2, with_bn=False, is_train=is_train))
+
+    # conv2 block, 256 outputs
+    conv2 = lrelu(conv2d("d_conv2", conv1, [5, 5, 128, 256], STRIDE_2, is_train=is_train))
+
+    # conv3 block, 512 outputs
+    conv3 = lrelu(conv2d("d_conv3", conv2, [5, 5, 256, 512], STRIDE_2, is_train=is_train))
+
+    # conv4 block, 1024 outputs
+    conv4 = lrelu(conv2d("d_conv4", conv3, [5, 5, 512, 1024], STRIDE_2, is_train=is_train))
+
+    # average pooling: (Manju) We NEED this.
+    avg_pool = tf.reduce_mean(conv4, [1, 2])
+
+    top = avg_pool
+
+    return top
+
+def discriminator_classify(data, n_classes, is_train, feature_size = 1024, layer_name="c_classifier_n"):
+
+    features = discriminator_features(data, is_train = tf.constant(False), reuse = True)
+
+    classifier = linear(layer_name, features, [feature_size, n_classes], with_bn = False, is_train=is_train)
+
+    return classifier
+
+def discriminator_classify_to_labels(classification_scores):
+
+    output_classes = tf.where(classification_scores >= 0, tf.ones_like(classification_scores), -1*tf.ones_like(classification_scores))
+
+    return output_classes
+
+def discriminator_classify_exclusive(data, n_classes, is_train, feature_size = 1024, layer_name="c_classifier_n"):
+
+    features = discriminator_features(data, is_train = tf.constant(False), reuse = True)
+
+    classifier = linear(layer_name, features, [feature_size, n_classes], with_bn = False, is_train=is_train)
+
+    return classifier
+
+def discriminator_classify_to_labels_exclusive(classification_scores):
+
+    output_classes = tf.argmax(classification_scores, axis = 1)
+
+    return output_classes

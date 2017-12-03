@@ -15,7 +15,7 @@ import math
 import cPickle
 
 # local imports
-from models_old import generator, discriminator, discriminator_classify, discriminator_classify_to_labels
+from models import *
 
 
 import pdb
@@ -102,7 +102,7 @@ def _read_preprocess_cifar10(cifar_path, cifar_filenames):
         else:
             cifar_labels = np.concatenate((cifar_labels, label_set))
 
-    cifar_data = cifar_data*2 - 1
+    cifar_data = cifar_data.astype(np.float32, copy=False)/255*2 - 1
 
     return cifar_data, cifar_labels
 
@@ -125,7 +125,7 @@ def classify_celebA(args):
     label_tensor = tf.placeholder(tf.float32, shape = [None, n_classes], name="label_tensor")
     is_train = tf.placeholder(tf.bool, name="is_train")
 
-    classifier = discriminator_classify(img_data, n_classes, layer_name="c_classifier_n")
+    classifier = discriminator_classify(img_data, n_classes, is_train, layer_name="c_classifier_n")
     classifier_labels = discriminator_classify_to_labels(classifier)
 
     classification_loss = tf.reduce_mean(tf.reduce_sum((classifier - label_tensor)**2, axis=1))
@@ -223,16 +223,14 @@ def classify_cifar(args):
     n_classes = 3
     # which attribute columns will we classify
     class_cols = [1,2,3]
-    train_ratio = 0.8
-    img_set = 5000
-    dataset_path = "data/celebA/"
+    train_path = "data/cifar_10/"
 
-    img_data = tf.placeholder(tf.float32, shape=[None, 64, 64, 3], name="img_data")
+    img_data = tf.placeholder(tf.float32, shape=[None, 32, 32, 3], name="img_data")
     label_tensor = tf.placeholder(tf.float32, shape = [None, n_classes], name="label_tensor")
     is_train = tf.placeholder(tf.bool, name="is_train")
 
-    classifier = discriminator_classify(img_data, n_classes, layer_name="c_classifier_n")
-    classifier_labels = discriminator_classify_to_labels(classifier)
+    classifier = discriminator_classify_exclusive(img_data, n_classes, is_train, layer_name="c_classifier_n")
+    classifier_labels = discriminator_classify_to_labels_exclusive(classifier)
 
     classification_loss = tf.reduce_mean(tf.reduce_sum((classifier - label_tensor)**2, axis=1))
 
@@ -245,21 +243,25 @@ def classify_cifar(args):
 
     opt_classifier = tf.train.AdamOptimizer(0.001, beta1=0.5).minimize(classification_loss, var_list=c_vars)
 
-    #read labels
-    label_data = np.genfromtxt("data/list_attr_celeba.txt",skip_header=2, dtype=None, usecols=class_cols)
-    img_name_data = np.genfromtxt("data/list_attr_celeba.txt",skip_header=2, dtype=None, usecols=(0))
+
+    cifar_batch_files = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
+    cifar_data, cifar_labels = _read_preprocess_cifar10(train_path, cifar_batch_files)
+
+    cifar_data_train = cifar_data
+    cifar_train_labels = np.zeros((cifar_labels.shape[0], 10))
+    cifar_train_labels[np.arange(cifar_labels.shape[0]), cifar_labels] = 1
+
+    pdb.set_trace()
+
+    img_set = cifar_data_train.shape[0]
 
     example_idx = np.arange(0, img_set)
 
     example_idx_rnd = np.random.permutation(example_idx)
 
-    train_idx = example_idx[0:(int(img_set*0.8))]
-
-    test_idx  = example_idx[(int(img_set*0.8)):]
+    train_idx = example_idx_rnd
 
     num_iter = int(math.ceil(len(train_idx)/batch_size))
-
-
 
     # saver for discriminator vars only
     saver = tf.train.Saver(var_list = d_vars)
@@ -281,15 +283,9 @@ def classify_cifar(args):
 
         batch_idx = train_idx_shuffle[batch_start:batch_end]
 
-        batch_labels = label_data[batch_idx, :]
+        batch_labels = cifar_train_labels[batch_idx, :]
 
-        batch_img_names = img_name_data[batch_idx]
-
-        img_paths = []
-        for img_name in batch_img_names:
-            img_paths.append(dataset_path + img_name)
-
-        batch_imgs = _read_and_preprocess(img_paths, scale_len, crop_len)
+        batch_imgs = cifar_data_train[batch_idx, :, :, :]
 
         feed_dict_in = {img_data:batch_imgs, label_tensor:batch_labels, is_train:True}
 
@@ -298,17 +294,15 @@ def classify_cifar(args):
         print loss
 
     #test
-    test_labels = label_data[test_idx,:]
+    cifar_batch_files = ["test_batch"]
+    cifar_data, cifar_labels = _read_preprocess_cifar10(train_path, cifar_batch_files)
 
-    test_img_names = img_name_data[test_idx]
+    test_labels = np.zeros((cifar_labels.shape[0], 10))
+    test_labels[np.arange(cifar_labels.shape[0]), cifar_labels] = 1
 
-    img_paths = []
-    for img_name in test_img_names:
-            img_paths.append(dataset_path + img_name)
+    test_imgs = cifar_data
 
-    test_imgs = _read_and_preprocess(img_paths, scale_len, crop_len)
-
-    feed_dict_test = {img_data:test_imgs, label_tensor:test_labels, is_train:True}
+    feed_dict_test = {img_data:test_imgs, label_tensor:test_labels, is_train:False}
 
     test_loss, test_label_out = sess.run([classification_loss, classifier_labels], feed_dict = feed_dict_test)
 
@@ -320,9 +314,7 @@ def classify_cifar(args):
 
 def main(args):
     #classify_celebA(args)
-    cifar_batch_files = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
-    cifar_data, cifar_labels = read_cifar10("data/cifar_10/", cifar_batch_files)
-    pdb.set_trace()
+    classify_cifar(args)
 
 
 if __name__ == "__main__":
