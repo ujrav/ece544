@@ -232,7 +232,7 @@ def classify_cifar(args):
     classifier = discriminator_classify_exclusive(img_data, n_classes, is_train, layer_name="c_classifier_n")
     classifier_labels = discriminator_classify_to_labels_exclusive(classifier)
 
-    classification_loss = tf.reduce_mean(tf.reduce_sum((classifier - label_tensor)**2, axis=1))
+    classification_loss = tf.reduce_mean(tf.reduce_sum((classifier - label_tensor)**2, axis=1)) # Can we change this to another loss function?
 
     d_vars = [var for var in tf.trainable_variables() if "d_" in var.name]
     c_vars = [var for var in tf.trainable_variables() if "c_" in var.name]
