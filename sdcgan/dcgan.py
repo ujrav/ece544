@@ -40,7 +40,7 @@ from tensorflow.python.lib.io import file_io
 import scipy.misc
 
 # local imports
-from sdcganbn.models import generator, discriminator
+from models import generator, discriminator
 
 
 # size of the input latent space
@@ -62,15 +62,15 @@ DISPLAY_LOSSES = 50
 
 
 # directory to snapshot models and images
-OUTPUT_PATH = "gs://juman/sdcgan/outputbn"  # Manju: change this to your bucket. Make sure you have the appropriate folders. This code cannot make directories.
+OUTPUT_PATH = "gs://sacillini/sdcgan/outputcarpe"  # Manju: change this to your bucket. Make sure you have the appropriate folders. This code cannot make directories.
 CHECKPOINT_NAME = "checkpoint/dcgan.tfmodel" # make sure you have the checkpoint directory inside output folder.
 
 
 # argparse
 parser = argparse.ArgumentParser(description="Train a DCGAN using Tensorflow.")
 parser.add_argument("-n", "--num-epochs", type=int, default=100, help="number of epochs")
-parser.add_argument("-b", "--batch-size", type=int, default=32, help="batch size to use")
-parser.add_argument("-l", "--learning-rate", type=float, default=1e-3, help="generator learning rate")
+parser.add_argument("-b", "--batch-size", type=int, default=64, help="batch size to use")
+parser.add_argument("-l", "--learning-rate", type=float, default=2e-4, help="generator learning rate")
 parser.add_argument("-i", "--image-size", type=int, default=64, help="(square) image size")
 parser.add_argument("-s", "--scale-size", type=int, default=64, help="resize length for center crop")
 parser.add_argument("-t", "--train-dir", type=str, help="directory to pull training images from")
@@ -273,7 +273,7 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
     opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(loss_D, var_list=d_vars)
 
     # create a saver and restore variables, if necessary
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=1000)
     model_path = os.path.join(OUTPUT_PATH, CHECKPOINT_NAME)
 
     # do some initialization
@@ -288,7 +288,9 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
     vec_ref = np.random.uniform(-1, 1,size=(batch_size, Z_SIZE)).astype(np.float32)
 
     # begin training
-    n_iterations = len(paths) // batch_size
+    #number of new images per epoch:
+    nnew=batch_size*200
+    n_iterations = nnew // batch_size
     for epoch in range(sess.run(global_step), n_epochs):
         print("------- EPOCH {0} -------".format(epoch))
         random.shuffle(paths)
@@ -296,7 +298,7 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
         # train the discriminator for one epoch
         for i in range(n_iterations):
 
-            offset = (i * batch_size) % len(paths)
+            offset = (i * batch_size) % nnew
             batch_paths = paths[offset:(offset + batch_size)]
             imgs = _read_and_preprocess(batch_paths, scale_len, crop_len,batch_size)
             vec = np.random.uniform(-1, 1,size=(batch_size, Z_SIZE)).astype(np.float32)
@@ -306,9 +308,8 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, pat
 
             # minimize generator loss once or twice
             
-            if i%10==0:
-                sess.run(opt_G, feed_dict={sample: vec, is_train: True})
-            
+            sess.run(opt_G, feed_dict={sample: vec, is_train: True})
+            sess.run(opt_G, feed_dict={sample: vec, is_train: True})
             # sess.run(opt_G, feed_dict={sample: vec, is_train: True}) #Manju: Some papers suggest to run generator twice. I've seen mixed results with this. Not quite sure what to do
             
 
@@ -369,6 +370,8 @@ def main(args):
 
     global OUTPUT_PATH
 
+    train_partition = 182637
+
     # should probably be passing this to `train_dcgan()` instead
     if args.output_dir:
         OUTPUT_PATH = args.output_dir
@@ -382,7 +385,7 @@ def main(args):
         paths = [path for path in tf.gfile.Glob(pathname)]
 
         train_dcgan(args.num_epochs, args.batch_size, args.learning_rate, 
-                    args.image_size, args.scale_size, args.restore, paths[0:5120])
+                    args.image_size, args.scale_size, args.restore, paths[0:train_partition])
 
         
     # otherwise, use the generator to just sample and create images

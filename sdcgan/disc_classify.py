@@ -15,17 +15,22 @@ import math
 import cPickle
 
 # local imports
-from models import *
-
-
-import pdb
+from sdcgan.models_cifar import *
 
 
 # argparse
 parser = argparse.ArgumentParser(description="Use a trained DCGAN Descriminator for Classification")
-parser.add_argument("-c", "--checkpoint-dir", type=str, default="output_cifar/checkpoint", help="directory to checkpoints")
+parser.add_argument("-c", "--checkpoint-dir", type=str, default="saved_checkpoints/cifar_dcgan/", help="directory to checkpoints")
+parser.add_argument("-t", "--train-dir", type=str, default="data/cifar_10", help="path to training data")
 parser.add_argument("-i", "--image-size", type=int, default=64, help="(square) image size")
 parser.add_argument("-s", "--scale-size", type=int, default=64, help="resize length for center crop")
+parser.add_argument("-e", "--num-epochs", type=int, default=10, help="number of epochs")
+parser.add_argument("-o", "--output-dir", type=str, default="output_disc_class/", help="directory for outputs")
+parser.add_argument("-m", "--train-mode", type=str, default = "top")
+parser.add_argument("-d", "--restore-dir", type=str, default="output_disc_class/", help="directory to restore classification model")
+parser.add_argument("-r", "--restore", action="store_true", help="specify to use the latest checkpoint")
+parser.add_argument("-z", "--job-dir", type=str, default="outputs", help="blah")
+
 
 def _read_and_preprocess(paths, scale_len, crop_len):
     """
@@ -78,7 +83,7 @@ def _read_preprocess_cifar10(cifar_path, cifar_filenames):
 
     for filename in cifar_filenames:
 
-        filepath = cifar_path + filename
+        filepath = os.path.join(cifar_path, filename)
 
         file = file_io.FileIO(filepath,mode='r')
 
@@ -208,9 +213,7 @@ def classify_celebA(args):
 
     test_acc = np.mean(test_labels == test_label_out, axis = 0)
 
-    print test_acc
-
-    pdb.set_trace()
+    print "test accuracy = "+str(test_acc)
 
 def classify_cifar(args):
 
@@ -220,15 +223,20 @@ def classify_cifar(args):
     checkpoint_dir = args.checkpoint_dir
 
     batch_size = 100
-    num_epochs = 10
+    num_epochs = args.num_epochs
     n_classes = 10
     # which attribute columns will we classify
     class_cols = [1,2,3]
-    train_path = "data/cifar_10/"
+    train_path = args.train_dir
+    output_path = args.output_dir
+    model_path = os.path.join(output_path,"checkpoint/disc_class.tfmodel")
 
     img_data = tf.placeholder(tf.float32, shape=[None, 32, 32, 3], name="img_data")
     label_tensor = tf.placeholder(tf.int32, shape = [None,], name="label_tensor")
     is_train = tf.placeholder(tf.bool, name="is_train")
+
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+
 
     classifier = discriminator_classify_exclusive(img_data, n_classes, is_train, layer_name="c_classifier_n")
     classifier_labels = discriminator_classify_to_labels_exclusive(classifier)
@@ -237,8 +245,10 @@ def classify_cifar(args):
 
     d_vars = [var for var in tf.trainable_variables() if "d_" in var.name]
     c_vars = [var for var in tf.trainable_variables() if "c_" in var.name]
+    train_vars = [var for var in tf.trainable_variables()]
 
-    opt_classifier = tf.train.AdamOptimizer(0.0001, beta1=0.5).minimize(classification_loss, var_list=c_vars)
+    opt_classifier = tf.train.AdamOptimizer(0.0001, beta1=0.5).minimize(classification_loss, var_list=c_vars, global_step=global_step)
+    opt_classifier_all_layers = tf.train.AdamOptimizer(0.00001, beta1=0.5).minimize(classification_loss)
 
 
     cifar_batch_files = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
@@ -262,6 +272,8 @@ def classify_cifar(args):
     # saver for discriminator vars only
     saver = tf.train.Saver(var_list = d_vars)
 
+    saver_out = tf.train.Saver()
+
     sess = tf.Session()
 
     # intialize tf variables
@@ -271,6 +283,8 @@ def classify_cifar(args):
     saver.restore(sess, chkpt_fname)
 
     for epoch_idx in range(0, num_epochs):
+
+        print "epoch "+str(epoch_idx)
 
         train_idx_shuffle = np.random.permutation(train_idx)
 
@@ -289,7 +303,10 @@ def classify_cifar(args):
 
             _, loss = sess.run([opt_classifier, classification_loss], feed_dict = feed_dict_in)
 
-            print loss
+            print "training loss: "+str(loss)
+
+            
+        saver_out.save(sess, model_path, global_step=global_step)
 
     #test
     cifar_batch_files = ["test_batch"]

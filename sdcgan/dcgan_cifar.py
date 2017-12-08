@@ -41,7 +41,7 @@ import scipy.misc
 import cPickle
 
 # local imports
-from sdcgan.models import generator, discriminator
+from sdcgan.models_cifar import generator, discriminator
 
 
 # size of the input latent space
@@ -77,6 +77,7 @@ parser.add_argument("-s", "--scale-size", type=int, default=32, help="resize len
 parser.add_argument("-t", "--train-dir", type=str, help="directory to pull training images from")
 parser.add_argument("-o", "--output-dir", type=str, default="outputs", help="directory to output generations")
 parser.add_argument("-r", "--restore", action="store_true", help="specify to use the latest checkpoint")
+parser.add_argument("-w", "--no-bn", action="store_true", help="no batch normalization in convolutional layers")
 parser.add_argument("-z", "--job-dir", type=str, default="outputs", help="blah")
 
 #Manju: I've commented the following because making/ deleting directoris is a pain to do in GCS. So please do it manually.
@@ -261,7 +262,7 @@ def _read_preprocess_cifar10(cifar_path, cifar_filenames):
 
 
 
-def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, train_path):
+def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, train_path, with_bn = True):
     """
         Train DCGAN.
 
@@ -289,18 +290,20 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, tra
 
     assert scale_len >= crop_len, "invalid resize or crop length"
 
+    print "use batch norm "+str(with_bn)
+
     # create placeholders
     sample = tf.placeholder(tf.float32, shape=[batch_size, Z_SIZE], name="sample")
     real = tf.placeholder(tf.float32, shape=[batch_size, 32, 32, 3], name="real")
     is_train = tf.placeholder(tf.bool, name="is_train")
 
     # instantiate the models
-    G = generator(sample, is_train, crop_len)
-    D_fake = discriminator(G, is_train,reuse=False)
+    G = generator(sample, is_train, crop_len, with_bn=with_bn)
+    D_fake = discriminator(G, is_train,reuse=False, with_bn=with_bn)
     
     with tf.variable_scope(tf.get_variable_scope()) as scope:
         tf.get_variable_scope().reuse_variables()
-        D_real = discriminator(real, is_train,reuse=True)
+        D_real = discriminator(real, is_train,reuse=True, with_bn=with_bn)
 
 
     # create losses
@@ -319,7 +322,7 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, tra
     opt_D = tf.train.AdamOptimizer(2e-4, beta1=0.5).minimize(loss_D, var_list=d_vars)
 
     # create a saver and restore variables, if necessary
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=1000)
     model_path = os.path.join(OUTPUT_PATH, CHECKPOINT_NAME)
 
     # do some initialization
@@ -425,7 +428,7 @@ def main(args):
 
 
     train_dcgan(args.num_epochs, args.batch_size, args.learning_rate, 
-                args.image_size, args.scale_size, args.restore, args.train_dir)  
+                args.image_size, args.scale_size, args.restore, args.train_dir, (not args.no_bn))  
 
         
 if __name__ == "__main__":

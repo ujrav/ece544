@@ -252,3 +252,8 @@ def discriminator_classify_to_labels_exclusive(classification_scores):
     output_classes = tf.argmax(classification_scores, axis = 1)
 
     return output_classes
+
+def discriminator_classify_exclusive_loss(logit, labels):
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logit, labels)
+
+    return loss
