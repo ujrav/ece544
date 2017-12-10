@@ -32,6 +32,10 @@ python dcgan_cifar.py --num-epochs 40 \
 --train-dir data/cifar_10 \
 --output-dir output
 
+JOB_NAME="disc_class_epoch1000_losslogs_perepoch"
+gcloud ml-engine jobs submit training ${JOB_NAME} --package-path sdcgan --module-name sdcgan.disc_classify --staging-bucket gs://ece_544_project_data --job-dir gs://ece_544_project_data/${JOB_NAME} --runtime-version 1.2 --packages sdcgan/scikit-image.tar.gz --region us-central1 --config sdcgan/cloudml-cpu.yaml -- --num-epochs 1000 --train-dir gs://ece_544_project_data/sdcgan/data/cifar_10 --output-dir gs://ece_544_project_data/sdcgan/output_disc_class --checkpoint-dir gs://ece_544_project_data/sdcgan/saved_checkpoints/cifar_dcgan
+
+
 
 
 JOB_NAME="ravaiol2_sdcgan_manju"
@@ -93,4 +97,6 @@ You tried the following:
 %generator 2e-4 did not work with discriminator: 1e-4
 
 
+gcloud ml-engine jobs describe sdcgan_celeba_final2
 
+gcloud ml-engine jobs stream-logs disc_class_epoch1000_losslogs

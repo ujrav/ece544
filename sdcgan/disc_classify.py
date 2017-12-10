@@ -288,6 +288,8 @@ def classify_cifar(args):
 
         train_idx_shuffle = np.random.permutation(train_idx)
 
+        loss_acc = 0
+
         #train
         for i in range(0, num_iter):
             batch_start = i*batch_size
@@ -303,8 +305,13 @@ def classify_cifar(args):
 
             _, loss = sess.run([opt_classifier, classification_loss], feed_dict = feed_dict_in)
 
-            print "training loss: "+str(loss)
+            loss_acc += loss
 
+            if epoch_idx < 2:
+                print "it loss: "+str(loss)
+
+
+        print "epoch, loss: "+str(epoch_idx)+","+str(loss_acc/num_iter)
             
         saver_out.save(sess, model_path, global_step=global_step)
 
