@@ -1,28 +1,11 @@
 """
-dcgan.py: A DCGAN implementation in Tensorflow.
 
-author: Frank Liu - frank.zijie@gmail.com
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of the Frank Liu (fzliu) nor the
-      names of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL Frank Liu (fzliu) BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Based On:
+    dcgan.py: A DCGAN implementation in Tensorflow.
+
+    author: Frank Liu - frank.zijie@gmail.com
+
 """
 # system imports
 import argparse
@@ -31,14 +14,14 @@ import random
 # import shutil
 
 # library imports
+import cPickle
 import numpy as np
+import scipy.misc
 from skimage.color import gray2rgb
 # from skimage.io import imread, imsave
 from skimage.transform import resize
 import tensorflow as tf
 from tensorflow.python.lib.io import file_io
-import scipy.misc
-import cPickle
 
 # local imports
 from sdcgan.models_cifar import generator, discriminator
@@ -51,10 +34,10 @@ Z_SIZE = 100
 TRAIN_RATIO = 10
 DISPLAY_LOSSES = 50
 
-#Manju: Directory tree:
-#dcgan.py
-#models.py
-#data/celebA/*.jpg
+#Directory tree:
+#dcgan_cifar.py
+#models_cifar.py
+#data/cifar_10/
 #output/epoch*.jpg   #sampled images after every epoch will be created here.
 #output/checkpoint/ #have this directory tree. # Checkpoint files will be created here.
 
@@ -80,17 +63,6 @@ parser.add_argument("-r", "--restore", action="store_true", help="specify to use
 parser.add_argument("-w", "--no-bn", action="store_true", help="no batch normalization in convolutional layers")
 parser.add_argument("-z", "--job-dir", type=str, default="outputs", help="blah")
 
-#Manju: I've commented the following because making/ deleting directoris is a pain to do in GCS. So please do it manually.
-# def _clean_directory(path):
-#     """
-#         Clears (and creates) a directory on the filesystem.
-#     """
-
-#     if os.path.exists(path):
-#         shutil.rmtree(os.path.join(path))
-#     os.mkdir(path)
-
-
 def _sigmoid_loss(logits, targets):
     """
         Wrapper around Tensorflow's sigmoid loss function.
@@ -100,98 +72,6 @@ def _sigmoid_loss(logits, targets):
 
     return tf.reduce_mean(loss_comp)
     
-
-def _read_and_preprocess(paths, scale_len, crop_len):
-    """
-        Reads multiple images (and labels).
-    """
-
-    # imgs = []
-
-    # for path in paths:
-        
-    #     file=file_io.FileIO(path,mode='r')
-    #     img = scipy.misc.imread(file,mode='RGB')
-
-    #     # force 3-channel images
-    #     # if img.ndim == 2:
-    #     #     img = gray2rgb(img)
-    #     # elif img.shape[2] == 4:
-    #     #     img = img[:, :, :3]
-
-    #     # compute the resize dimension
-    #     resize_f = float(scale_len) / min(np.array(img).shape[:2])
-    #     new_dims = (int(np.round(img.shape[0] * resize_f)),
-    #                 int(np.round(img.shape[1] * resize_f)))
-
-    #     # prevent the input image from blowing up
-    #     # factor of 2 is more or less an arbitrary number
-    #     max_dim = 2 * scale_len
-    #     new_dims = (min(new_dims[0], max_dim),
-    #                 min(new_dims[1], max_dim))
-
-    #     # resize and center crop
-    #     img = resize(img, new_dims)
-    #     top = int(np.ceil((img.shape[0] - crop_len) / 2.0))
-    #     left = int(np.ceil((img.shape[1] - crop_len) / 2.0))
-    #     img = img[top:(top+crop_len), left:(left+crop_len)]
-
-    #     # preprocessing (tanh)
-    #     img = img*2 - 1
-
-    #     imgs.append(img)
-
-
-    imgs = []
-    img=np.random.uniform(-1,1,size=(64,64,3))
-
-    for path in paths:
-        
-        try:
-
-            file=file_io.FileIO(path,mode='r')
-            img = scipy.misc.imread(file,mode='RGB')
-
-            # force 3-channel images
-            if np.array(img).ndim == 2:
-                img = gray2rgb(img)
-            elif np.array(img).ndim!=3:
-                img=np.random.uniform(-1,1,size=(64,64,3)) 
-                print("Adding noise")
-                # when there is a file IO error
-
-            # compute the resize dimension
-            
-
-            resize_f = float(scale_len) / min(np.array(img).shape[:2])
-            new_dims = (int(np.round(img.shape[0] * resize_f)),
-                        int(np.round(img.shape[1] * resize_f)))
-
-            # prevent the input image from blowing up
-            # factor of 2 is more or less an arbitrary number
-            max_dim = 2 * scale_len
-            new_dims = (min(new_dims[0], max_dim),
-                        min(new_dims[1], max_dim))
-
-            # resize and center crop
-            img = resize(img, new_dims)
-            top = int(np.ceil((img.shape[0] - crop_len) / 2.0))
-            left = int(np.ceil((img.shape[1] - crop_len) / 2.0))
-            img = img[top:(top+crop_len), left:(left+crop_len)]
-
-            # preprocessing (tanh)
-            img = img*2 - 1
-
-            imgs.append(img)
-        
-        except:
-            imgs.append(img)
-
-
-
-    return np.array(imgs)
-
-
 def _deprocess_and_save(batch_res, epoch, grid_shape=(8, 8), grid_pad=5):
     """
         Deprocesses the generator output and saves the results.
@@ -377,42 +257,6 @@ def train_dcgan(n_epochs, batch_size, lr_rate, crop_len, scale_len, restore, tra
         saver.save(sess, model_path, global_step=global_step)
         batch_res = sess.run(G, {sample: vec_ref, is_train: False})
         _deprocess_and_save(batch_res, epoch)
-
-
-# Manju: Commented the following because it doesnt work, and it is not needed. Dont sample it separately, just run the code again with --restore to get new 
-# samples after an epoch
-
-# def sample_dcgan(side_len,batch_size):
-#     """
-#         Runs inference on the generator.
-
-#         :param int side_len:
-#             Side length for generator output (must match `crop_len`).
-#     """
-
-#     # only need to restore the generator's variables
-#     sample = tf.placeholder(tf.float32, shape=[batch_size, Z_SIZE], name="sample")
-
-#     with tf.variable_scope(tf.get_variable_scope()) as scope:
-#         tf.get_variable_scope().reuse_variables()
-#         G = generator(sample, None, side_len)
-
-#     sess = tf.Session()
-#     sess.run(tf.initialize_all_variables())
-
-#     # apply the trained generator weights
-#     saver = tf.train.Saver()
-#     model_path = os.path.join(OUTPUT_PATH, 'checkpoint')
-#     chkpt_fname = tf.train.latest_checkpoint(model_path)
-#     saver.restore(sess, chkpt_fname)
-
-#     # run a forward pass
-#     vec = np.random.normal(size=(batch_size, Z_SIZE))
-#     result = sess.run(G, {sample: vec})
-
-#     # save the result
-#     _deprocess_and_save(result, -1)
-
 
 def main(args):
     """
